@@ -4,8 +4,12 @@ import urllib2
 import gzip
 import httplib
 from urlparse import urlparse
+import math
 import re
+import sys
 from StringIO import StringIO
+
+from sequencestore import SequenceStore
 
 __author__ = 'David Lynch (kemayo at gmail dot com)'
 __version__ = '0.1'
@@ -70,9 +74,31 @@ def _urlsizereducer(urls):
         total = total + size
     return total
 
-if __name__ == '__main__':
-    url = 'http://www.deviantart.com'
-    
+SIMPLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+def _simple_encode(values, maximum = 62):
+    encoded = []
+    for value in values:
+        scaled = int(len(SIMPLE) * float(value) / maximum)
+        encoded.append(SIMPLE[scaled])
+    return ''.join(encoded)
+EXTENDED = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-.'
+def _extended_encode(values, maximum = 4095):
+    encoded = []
+    ext_max = (len(EXTENDED) ** 2)
+    for value in values:
+        scaled = math.floor(ext_max * float(value) / maximum)
+        if scaled > ext_max - 1:
+            encoded.append('..')
+        elif scaled < 0:
+            encoded.append('__')
+        else:
+            quotient = int(math.floor(scaled / len(EXTENDED)))
+            remainder = int(scaled - len(EXTENDED) * quotient)
+            encoded.append(EXTENDED[quotient])
+            encoded.append(EXTENDED[remainder])
+    return ''.join(encoded)
+
+def fetch_data_for_url(url):
     page = _fetch(url)
     sections = page.split('<body')
     
@@ -89,23 +115,63 @@ if __name__ == '__main__':
     nonblocking_js = _urlsizereducer(body_scripts)
     nonblocking_css = _urlsizereducer(body_links) #should really be nonexistant
     
-    print url
-    print "blocking js", "%.02f" % (blocking_js / 1024.0), 'kB'
-    print "blocking css", "%.02f" % (blocking_css / 1024.0), 'kB'
-    print "nonblocking js", "%.02f" % (nonblocking_js / 1024.0), 'kB'
-    print "nonblocking css", "%.02f" % (nonblocking_css / 1024.0), 'kB'
+    return blocking_js, blocking_css, nonblocking_js, nonblocking_css
+
+def _splitvalues(x):
+    return [int(v) for v in x.split('|')]
+
+if __name__ == '__main__':
+    store = SequenceStore('data.sqlite')
     
-    x_max = blocking_js + blocking_css + nonblocking_js + nonblocking_css
+    urls = [
+        'http://www.deviantart.com',
+        'http://kemayo.deviantart.com/art/Delicious-baby-131363146',
+        ]
     
-    chart_url = [
-        'http://chart.apis.google.com/chart?cht=bvs&chco=FFA401,FFA401,679EC5,679EC5&chs=500x500&',
-        # 'chds=0,', str(x_max), '&',
-        'chxt=y&chxr=0,0,', str(x_max / 1024.0), '10&',
-        'chd=t:',
-        str(100 * blocking_js / x_max), '|',
-        str(100 * blocking_css / x_max), '|',
-        str(100 * nonblocking_js / x_max), '|',
-        str(100 * nonblocking_css / x_max)
-    ]
+    action = 'graph'
+    if len(sys.argv) > 1:
+        action = sys.argv[1]
     
-    print "Google chart:", ''.join(chart_url)
+    if action == 'fetch':
+        for url in urls:
+            blocking_js, blocking_css, nonblocking_js, nonblocking_css = fetch_data_for_url(url)
+            
+            print url
+            print " blocking js:", "%.02f" % (blocking_js / 1024.0), 'kB'
+            print " blocking css:", "%.02f" % (blocking_css / 1024.0), 'kB'
+            print " nonblocking js:", "%.02f" % (nonblocking_js / 1024.0), 'kB'
+            print " nonblocking css:", "%.02f" % (nonblocking_css / 1024.0), 'kB'
+            
+            store.add(url, '%d|%d|%d|%d' % (blocking_js, blocking_css, nonblocking_js, nonblocking_css))
+    elif action == 'graph':
+        for url in urls:
+            data = store.get(url, value_function = _splitvalues, order = "ASC")
+            y_max = 0
+            sequences = {
+                'blocking js': [],
+                'blocking css': [],
+                'nonblocking js': [],
+                'nonblocking css': [],
+            }
+            labels = []
+            for date, values in data:
+                y_max = max(y_max, sum(values))
+                sequences['blocking js'].append(values[0])
+                sequences['blocking css'].append(values[1])
+                sequences['nonblocking js'].append(values[2])
+                sequences['nonblocking css'].append(values[3])
+                labels.append(str(date))
+            
+            chart_url = [
+                'http://chart.apis.google.com/chart?cht=bvs&chco=FFA401,ef0491,679EC5,578EB5&chs=500x500&',
+                'chxt=x,y&chxr=1,0,', str(int(y_max / 1024.0)), '&',
+                'chxl=0:|', '|'.join(labels), '&',
+                'chd=e:',
+                _extended_encode(sequences['blocking js'], y_max), ',',
+                _extended_encode(sequences['blocking css'], y_max), ',',
+                _extended_encode(sequences['nonblocking js'], y_max), ',',
+                _extended_encode(sequences['nonblocking css'], y_max),
+            ]
+            
+            print url
+            print 'Chart: ', ''.join(chart_url)
