@@ -90,10 +90,10 @@ if __name__ == '__main__':
     nonblocking_css = _urlsizereducer(body_links) #should really be nonexistant
     
     print url
-    print "blocking js", blocking_js / 1024.0, 'kB'
-    print "blocking css", blocking_css / 1024.0, 'kB'
-    print "nonblocking js", nonblocking_js / 1024.0, 'kB'
-    print "nonblocking css", nonblocking_css / 1024.0, 'kB'
+    print "blocking js", "%.02f" % (blocking_js / 1024.0), 'kB'
+    print "blocking css", "%.02f" % (blocking_css / 1024.0), 'kB'
+    print "nonblocking js", "%.02f" % (nonblocking_js / 1024.0), 'kB'
+    print "nonblocking css", "%.02f" % (nonblocking_css / 1024.0), 'kB'
     
     x_max = blocking_js + blocking_css + nonblocking_js + nonblocking_css
     
