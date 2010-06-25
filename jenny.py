@@ -47,6 +47,8 @@ def find_externals(html):
     return scripts, links
 
 def external_size(url):
+    """Find the size of the resource at a given url
+    """
     if url in SIZECACHE:
         return SIZECACHE[url]
     o = urlparse(url, 'http')
@@ -74,6 +76,7 @@ def _urlsizereducer(urls):
         total = total + size
     return total
 
+# Some functions for encoding data for google charts
 SIMPLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 def _simple_encode(values, maximum = 62):
     encoded = []
@@ -99,6 +102,8 @@ def _extended_encode(values, maximum = 4095):
     return ''.join(encoded)
 
 def fetch_data_for_url(url):
+    """Find out filesizes for external CSS/JS on a given url
+    """
     page = _fetch(url)
     sections = page.split('<body')
     
