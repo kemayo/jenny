@@ -7,6 +7,7 @@ from urlparse import urlparse
 import math
 import re
 import sys
+import pprint
 from StringIO import StringIO
 
 from sequencestore import SequenceStore
@@ -76,6 +77,12 @@ def _urlsizereducer(urls):
         total = total + size
     return total
 
+def _url_list_to_dict(urls):
+    result = {}
+    for url in urls:
+        result[url] = external_size(url)
+    return result
+
 # Some functions for encoding data for google charts
 SIMPLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
 def _simple_encode(values, maximum = 62):
@@ -120,7 +127,16 @@ def fetch_data_for_url(url):
     nonblocking_js = _urlsizereducer(body_scripts)
     nonblocking_css = _urlsizereducer(body_links) #should really be nonexistant
     
-    return blocking_js, blocking_css, nonblocking_js, nonblocking_css
+    return {
+        'head_scripts':_url_list_to_dict(head_scripts),
+        'head_links':_url_list_to_dict(head_links),
+        'body_scripts':_url_list_to_dict(body_scripts),
+        'body_links':_url_list_to_dict(body_links),
+        'blocking_js':blocking_js,
+        'blocking_css':blocking_css,
+        'nonblocking_js':nonblocking_js,
+        'nonblocking_css':nonblocking_css,
+    }
 
 def _splitvalues(x):
     return [int(v) for v in x.split('|')]
@@ -133,21 +149,28 @@ if __name__ == '__main__':
         'http://kemayo.deviantart.com/art/Delicious-baby-131363146',
         ]
     
-    action = 'graph'
+    action = 'fetch'
     if len(sys.argv) > 1:
         action = sys.argv[1]
     
-    if action == 'fetch':
+    if action == 'store':
         for url in urls:
-            blocking_js, blocking_css, nonblocking_js, nonblocking_css = fetch_data_for_url(url)
+            data = fetch_data_for_url(url)
             
             print url
-            print " blocking js:", "%.02f" % (blocking_js / 1024.0), 'kB'
-            print " blocking css:", "%.02f" % (blocking_css / 1024.0), 'kB'
-            print " nonblocking js:", "%.02f" % (nonblocking_js / 1024.0), 'kB'
-            print " nonblocking css:", "%.02f" % (nonblocking_css / 1024.0), 'kB'
+            print " blocking js:", "%.02f" % (data['blocking_js'] / 1024.0), 'kB'
+            print " blocking css:", "%.02f" % (data['blocking_css'] / 1024.0), 'kB'
+            print " nonblocking js:", "%.02f" % (data['nonblocking_js'] / 1024.0), 'kB'
+            print " nonblocking css:", "%.02f" % (data['nonblocking_css'] / 1024.0), 'kB'
             
             store.add(url, '%d|%d|%d|%d' % (blocking_js, blocking_css, nonblocking_js, nonblocking_css))
+    elif action == 'fetch':
+        pp = pprint.PrettyPrinter(indent=4)
+        for url in urls:
+            data = fetch_data_for_url(url)
+            print url
+            pp.pprint(data)
+            print ''
     elif action == 'graph':
         for url in urls:
             data = store.get(url, value_function = _splitvalues, order = "ASC")
