@@ -163,7 +163,7 @@ if __name__ == '__main__':
             print " nonblocking js:", "%.02f" % (data['nonblocking_js'] / 1024.0), 'kB'
             print " nonblocking css:", "%.02f" % (data['nonblocking_css'] / 1024.0), 'kB'
             
-            store.add(url, '%d|%d|%d|%d' % (blocking_js, blocking_css, nonblocking_js, nonblocking_css))
+            store.add(url, '%d|%d|%d|%d' % (data['blocking_js'], data['blocking_css'], data['nonblocking_js'], data['nonblocking_css']))
     elif action == 'fetch':
         pp = pprint.PrettyPrinter(indent=4)
         for url in urls:
